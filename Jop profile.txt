@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Profile Refiner</title>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React and ReactDOM CDNs -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel for JSX transformation in the browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 sm:p-8">
+    <div id="root" class="max-w-6xl mx-auto bg-white rounded-xl shadow-2xl overflow-hidden"></div>
+
+    <script type="text/babel">
+        // Main App component
+        const App = () => {
+            // State variables for job profile input, role level, loading status, and analysis results
+            const [jobProfileText, setJobProfileText] = React.useState('');
+            const [guidelinesText, setGuidelinesText] = React.useState(''); // New state for organizational guidelines text
+            const [roleLevel, setRoleLevel] = React.useState('Professional'); // Default to 'Professional' as it's a common starting point
+            const [analysisResult, setAnalysisResult] = React.useState(null);
+            const [isLoading, setIsLoading] = React.useState(false);
+            const [error, setError] = React.useState(null);
+
+            // Function to handle the job profile analysis
+            const analyzeJobProfile = async () => {
+                setIsLoading(true);
+                setError(null);
+                setAnalysisResult(null);
+
+                // Construct the prompt for the Gemini API
+                // Now incorporating the user-provided guidelines text
+                const prompt = `Review the following job profile for a "${roleLevel}" role. Use the provided "Organizational Guidelines" and best practices in job description design to perform the analysis.
+
+Organizational Guidelines:
+\`\`\`
+${guidelinesText || "No specific guidelines provided. Using general best practices."}
+\`\`\`
+
+Job Profile:
+\`\`\`
+${jobProfileText}
+\`\`\`
+
+Based on the role level ("${roleLevel}") and the provided Organizational Guidelines, identify critical elements (e.g., job title, responsibilities, qualifications, competencies, success metrics) from the Job Profile.
+
+Cross-reference the extracted content with the Organizational Guidelines to validate alignment, specifically focusing on:
+1.  **Main Job Purpose:**
+    * For management levels (Director, Senior Manager, Manager, Team Lead): Flag if the purpose lacks strategic impact, leadership emphasis, or cross-functional language.
+    * For individual contributor levels (Professional, Senior Specialist, Specialist, Technical Fellow, Advisor, Expert, Senior Professional, Engineer, Assistant Engineer, Technicians): Alert if the purpose lacks operational focus or technical execution clarity.
+2.  **Action Verbs by Role Level:**
+    * For management levels: Highlight underused strategic verbs (e.g., Lead, Design, Strategize) and flag overly operational language.
+    * For individual contributor levels: Identify missing execution-focused verbs (e.g., Track, Assist, Implement) and flag inflated or vague terms.
+3.  **Responsibility Structuring Audit:**
+    * Scope Clarity: Check if ownership, decision-making authority, and impact metrics are explicitly defined.
+    * Role Alignment:
+        * Ensure management level responsibilities emphasize planning, evaluation, and cross-departmental collaboration.
+        * Ensure individual contributor responsibilities focus on task execution, tool/system usage, and compliance.
+4.  **Competency Alignment Check:**
+    * Technical Competencies:
+        * For management levels: Validate inclusion of strategic skills (e.g., budget oversight, vendor management, ROI analysis).
+        * For individual contributor levels: Confirm operational skills (e.g., LMS platforms, data entry/reporting, process adherence).
+    * Behavioral Competencies:
+        * For management levels: Verify leadership traits (e.g., visionary thinking, stakeholder negotiation).
+        * For individual contributor levels: Ensure executional strengths (e.g., adaptability, problem-solving).
+5.  **Qualifications & Experience Validation:**
+    * For management levels: Confirm appropriate years of experience (e.g., 5–8 years), advanced certifications (e.g., SHRM-SCP), and leadership history.
+    * For individual contributor levels: Ensure appropriate years of experience (e.g., 0–1 year), foundational certifications (e.g., HR fundamentals), and learning agility.
+6.  **Success Metrics:** Ensure they are specific, quantifiable outcomes.
+
+Your output should be a JSON object with the following structure:
+{
+    "gaps": ["List of identified gaps"],
+    "suggestions": ["List of suggested revisions"],
+    "prompts": ["List of guided prompts for refinement"],
+    "refinedProfile": {
+        "jobTitleAndLevel": "Refined Job Title & Level",
+        "mainJobPurpose": "Refined Main Job Purpose",
+        "keyResponsibilities": ["Refined Key Responsibility 1", "Refined Key Responsibility 2"],
+        "technicalCompetencies": ["Refined Technical Competency 1", "Refined Technical Competency 2"],
+        "behavioralCompetencies": ["Refined Behavioral Competency 1", "Refined Behavioral Competency 2"],
+        "qualificationsAndExperience": "Refined Qualifications & Experience",
+        "successMetrics": ["Refined Success Metric 1", "Refined Success Metric 2"]
+    }
+}
+Ensure the refinedProfile sections are comprehensive and directly address the identified gaps and suggestions. If a section is not explicitly present in the input, provide a reasonable default or suggest its inclusion. Focus on clarity, consistency, and role-specific rigor.`;
+
+                try {
+                    // Gemini API call
+                    const chatHistory = [];
+                    chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+                    const payload = {
+                        contents: chatHistory,
+                        generationConfig: {
+                            responseMimeType: "application/json",
+                            responseSchema: {
+                                type: "OBJECT",
+                                properties: {
+                                    gaps: { type: "ARRAY", items: { type: "STRING" } },
+                                    suggestions: { type: "ARRAY", items: { type: "STRING" } },
+                                    prompts: { type: "ARRAY", items: { type: "STRING" } },
+                                    refinedProfile: {
+                                        type: "OBJECT",
+                                        properties: {
+                                            jobTitleAndLevel: { type: "STRING" },
+                                            mainJobPurpose: { type: "STRING" },
+                                            keyResponsibilities: { type: "ARRAY", items: { type: "STRING" } },
+                                            technicalCompetencies: { type: "ARRAY", items: { type: "STRING" } },
+                                            behavioralCompetencies: { type: "ARRAY", items: { type: "STRING" } },
+                                            qualificationsAndExperience: { type: "STRING" },
+                                            successMetrics: { type: "ARRAY", items: { type: "STRING" } }
+                                        }
+                                    }
+                                },
+                                required: ["gaps", "suggestions", "prompts", "refinedProfile"]
+                            }
+                        }
+                    };
+                    const apiKey = ""; // API key is provided by the environment
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(`API error: ${response.status} - ${errorData.message || 'Unknown error'}`);
+                    }
+
+                    const result = await response.json();
+
+                    // Check if the response structure is as expected
+                    if (result.candidates && result.candidates.length > 0 &&
+                        result.candidates[0].content && result.candidates[0].content.parts &&
+                        result.candidates[0].content.parts.length > 0) {
+                        const jsonString = result.candidates[0].content.parts[0].text;
+                        const parsedJson = JSON.parse(jsonString);
+                        setAnalysisResult(parsedJson);
+                    } else {
+                        setError("Unexpected API response structure. Please try again.");
+                    }
+                } catch (err) {
+                    console.error("Error analyzing job profile:", err);
+                    setError(`Failed to analyze job profile: ${err.message}`);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            // Function to copy the refined job profile to clipboard
+            const copyRefinedProfileToClipboard = () => {
+                if (analysisResult && analysisResult.refinedProfile) {
+                    const refinedProfile = analysisResult.refinedProfile;
+                    const textToCopy = `
+Job Title & Level: ${refinedProfile.jobTitleAndLevel}
+Main Job Purpose: ${refinedProfile.mainJobPurpose}
+Key Responsibilities:
+${refinedProfile.keyResponsibilities.map(resp => `- ${resp}`).join('\n')}
+Technical Competencies:
+${refinedProfile.technicalCompetencies.map(comp => `- ${comp}`).join('\n')}
+Behavioral Competencies:
+${refinedProfile.behavioralCompetencies.map(comp => `- ${comp}`).join('\n')}
+Qualifications & Experience: ${refinedProfile.qualificationsAndExperience}
+Success Metrics:
+${refinedProfile.successMetrics.map(metric => `- ${metric}`).join('\n')}
+                    `.trim();
+
+                    // Use document.execCommand('copy') for clipboard functionality in iframes
+                    const textArea = document.createElement("textarea");
+                    textArea.value = textToCopy;
+                    textArea.style.position = "fixed"; // Avoid scrolling to bottom
+                    textArea.style.left = "-9999px"; // Move off-screen
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                        alert("Refined Job Profile copied to clipboard!"); // Use a simple alert for now
+                    } catch (err) {
+                        console.error('Failed to copy text: ', err);
+                        alert("Failed to copy text. Please try again or copy manually.");
+                    }
+                    document.body.removeChild(textArea);
+                }
+            };
+
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 sm:p-8 font-sans text-gray-800">
+                    <div className="max-w-6xl mx-auto bg-white rounded-xl shadow-2xl overflow-hidden">
+                        <header className="bg-indigo-600 text-white p-6 text-center rounded-t-xl">
+                            <h1 className="text-3xl sm:text-4xl font-extrabold mb-2">Job Profile Refiner 🚀</h1>
+                            <p className="text-indigo-200 text-lg">Aligning your job descriptions with organizational excellence.</p>
+                        </header>
+
+                        <main className="p-6 sm:p-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            {/* Input Section */}
+                            <section className="bg-gray-50 p-6 rounded-lg shadow-inner border border-gray-200">
+                                <h2 className="text-2xl font-bold text-indigo-700 mb-4">1. Input Job Profile & Guidelines</h2>
+                                <div className="mb-6">
+                                    <label htmlFor="roleLevel" className="block text-lg font-medium text-gray-700 mb-2">Select Role Level:</label>
+                                    <select
+                                        id="roleLevel"
+                                        value={roleLevel}
+                                        onChange={(e) => setRoleLevel(e.target.value)}
+                                        className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 bg-white text-gray-900 text-base"
+                                    >
+                                        <option value="Director">Director</option>
+                                        <option value="Senior Manager">Senior Manager</option>
+                                        <option value="Manager">Manager</option>
+                                        <option value="Team Lead">Team Lead</option>
+                                        <option value="Professional">Professional</option>
+                                        <option value="Senior Specialist">Senior Specialist</option>
+                                        <option value="Specialist">Specialist</option>
+                                        <option value="Technical Fellow">Technical Fellow</option>
+                                        <option value="Advisor">Advisor</option>
+                                        <option value="Expert">Expert</option>
+                                        <option value="Senior Professional">Senior Professional</option>
+                                        <option value="Engineer">Engineer</option>
+                                        <option value="Assistant Engineer">Assistant Engineer</option>
+                                        <option value="Technicians">Technicians</option>
+                                    </select>
+                                </div>
+                                <div className="mb-6">
+                                    <label htmlFor="guidelinesText" className="block text-lg font-medium text-gray-700 mb-2">
+                                        Paste Organizational Guidelines (from PDF/Excel text):
+                                    </label>
+                                    <textarea
+                                        id="guidelinesText"
+                                        className="w-full p-4 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 resize-y min-h-[150px] text-gray-900 text-base"
+                                        value={guidelinesText}
+                                        onChange={(e) => setGuidelinesText(e.target.value)}
+                                        placeholder="Paste your organizational guidelines here. For example:&#10;&#10;* Management roles require 5+ years experience.&#10;* Individual contributor roles focus on execution.&#10;* Use 'Lead' for strategic responsibilities."
+                                    ></textarea>
+                                    <p className="text-sm text-gray-500 mt-2">
+                                        For PDF/Excel guidelines, please copy and paste the relevant text content here. Direct file parsing is not supported in this version.
+                                    </p>
+                                </div>
+                                <div className="mb-6">
+                                    <label htmlFor="jobProfileText" className="block text-lg font-medium text-gray-700 mb-2">
+                                        Paste Job Profile Content (Word, Excel, PDF text):
+                                    </label>
+                                    <textarea
+                                        id="jobProfileText"
+                                        className="w-full p-4 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 resize-y min-h-[250px] text-gray-900 text-base"
+                                        value={jobProfileText}
+                                        onChange={(e) => setJobProfileText(e.target.value)}
+                                        placeholder="Paste your draft or existing job profile content here.&#10;&#10;Example:&#10;Job Title: Senior Software Engineer&#10;Main Job Purpose: Develop and maintain high-quality software solutions.&#10;Responsibilities: Write code, debug issues, participate in code reviews.&#10;Qualifications: Bachelor's degree in Computer Science, 3+ years experience.&#10;Competencies: Problem-solving, teamwork.&#10;Success Metrics: Timely feature delivery."
+                                    ></textarea>
+                                </div>
+                                <button
+                                    onClick={analyzeJobProfile}
+                                    disabled={isLoading || !jobProfileText.trim()}
+                                    className={`w-full py-3 px-6 rounded-md text-lg font-semibold transition duration-300 ease-in-out transform hover:scale-105
+                                        ${isLoading ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg'}`}
+                                >
+                                    {isLoading ? (
+                                        <span className="flex items-center justify-center">
+                                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            Analyzing...
+                                        </span>
+                                    ) : (
+                                        'Analyze Job Profile'
+                                    )}
+                                </button>
+                                {error && (
+                                    <div className="mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-md text-sm" role="alert">
+                                        Error: {error}
+                                    </div>
+                                )}
+                            </section>
+
+                            {/* Output Section */}
+                            <section className="bg-gray-50 p-6 rounded-lg shadow-inner border border-gray-200">
+                                <h2 className="text-2xl font-bold text-indigo-700 mb-4">2. Analysis & Refinement</h2>
+                                {analysisResult ? (
+                                    <div className="space-y-6">
+                                        {/* Gaps */}
+                                        <div className="bg-red-50 p-4 rounded-md border border-red-200">
+                                            <h3 className="text-xl font-semibold text-red-700 mb-2">Identified Gaps ⚠️</h3>
+                                            <ul className="list-disc list-inside text-gray-700 space-y-1">
+                                                {analysisResult.gaps.length > 0 ? (
+                                                    analysisResult.gaps.map((gap, index) => (
+                                                        <li key={index}>{gap}</li>
+                                                    ))
+                                                ) : (
+                                                    <li>No significant gaps identified.</li>
+                                                )}
+                                            </ul>
+                                        </div>
+
+                                        {/* Suggestions */}
+                                        <div className="bg-yellow-50 p-4 rounded-md border border-yellow-200">
+                                            <h3 className="text-xl font-semibold text-yellow-700 mb-2">Suggestions for Improvement ✨</h3>
+                                            <ul className="list-disc list-inside text-gray-700 space-y-1">
+                                                {analysisResult.suggestions.length > 0 ? (
+                                                    analysisResult.suggestions.map((suggestion, index) => (
+                                                        <li key={index}>{suggestion}</li>
+                                                    ))
+                                                ) : (
+                                                    <li>No specific suggestions at this time.</li>
+                                                )}
+                                            </ul>
+                                        </div>
+
+                                        {/* Guided Prompts */}
+                                        <div className="bg-blue-50 p-4 rounded-md border border-blue-200">
+                                            <h3 className="text-xl font-semibold text-blue-700 mb-2">Guided Prompts for Refinement 💡</h3>
+                                            <ul className="list-disc list-inside text-gray-700 space-y-1">
+                                                {analysisResult.prompts.length > 0 ? (
+                                                    analysisResult.prompts.map((prompt, index) => (
+                                                        <li key={index}>{prompt}</li>
+                                                    ))
+                                                ) : (
+                                                    <li>No specific prompts for further refinement.</li>
+                                                )}
+                                            </ul>
+                                        </div>
+
+                                        {/* Refined Job Profile */}
+                                        <div className="bg-green-50 p-4 rounded-md border border-green-200">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <h3 className="text-xl font-semibold text-green-700">Refined Job Profile ✅</h3>
+                                                <button
+                                                    onClick={copyRefinedProfileToClipboard}
+                                                    className="bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 transition duration-200 ease-in-out shadow-md"
+                                                >
+                                                    Copy to Clipboard
+                                                </button>
+                                            </div>
+                                            <div className="space-y-3 text-gray-800">
+                                                <p><strong>Job Title & Level:</strong> {analysisResult.refinedProfile.jobTitleAndLevel}</p>
+                                                <p><strong>Main Job Purpose:</strong> {analysisResult.refinedProfile.mainJobPurpose}</p>
+                                                <div>
+                                                    <strong>Key Responsibilities:</strong>
+                                                    <ul className="list-disc list-inside ml-4 space-y-0.5">
+                                                        {analysisResult.refinedProfile.keyResponsibilities.map((resp, index) => (
+                                                            <li key={index}>{resp}</li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                                <div>
+                                                    <strong>Technical Competencies:</strong>
+                                                    <ul className="list-disc list-inside ml-4 space-y-0.5">
+                                                        {analysisResult.refinedProfile.technicalCompetencies.map((comp, index) => (
+                                                            <li key={index}>{comp}</li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                                <div>
+                                                    <strong>Behavioral Competencies:</strong>
+                                                    <ul className="list-disc list-inside ml-4 space-y-0.5">
+                                                        {analysisResult.refinedProfile.behavioralCompetencies.map((comp, index) => (
+                                                            <li key={index}>{comp}</li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                                <p><strong>Qualifications & Experience:</strong> {analysisResult.refinedProfile.qualificationsAndExperience}</p>
+                                                <div>
+                                                    <strong>Success Metrics:</strong>
+                                                    <ul className="list-disc list-inside ml-4 space-y-0.5">
+                                                        {analysisResult.refinedProfile.successMetrics.map((metric, index) => (
+                                                            <li key={index}>{metric}</li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="text-center text-gray-500 py-10">
+                                        {isLoading ? (
+                                            <p>Analysis in progress...</p>
+                                        ) : (
+                                            <p>Enter a job profile and click "Analyze" to see the review and refined output here.</p>
+                                        )}
+                                    </div>
+                                )}
+                            </section>
+                        </main>
+
+                        <footer className="bg-indigo-700 text-indigo-200 p-4 text-center text-sm rounded-b-xl">
+                            <p>&copy; 2025 Job Profile Refiner. All rights reserved.</p>
+                        </footer>
+                    </div>
+                </div>
+            );
+        };
+
+        // Render the App component into the 'root' div
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>
